@@ -8,10 +8,23 @@ from knowledge_gpt.ui import (
 )
 from knowledge_gpt.core.caching import bootstrap_caching
 from knowledge_gpt.core.parsing import read_file
-from knowledge_gpt.core.chunking import chunk_file
+from knowledge_gpt.core.chunking import chunk_file  # Assuming chunk_file function is available in this module
 from knowledge_gpt.core.embedding import embed_files
 from knowledge_gpt.core.qa import query_folder
 from knowledge_gpt.core.utils import get_llm
+
+# New function to concatenate and chunk text from multiple files
+def chunk_multiple_files(files, chunk_size=300, chunk_overlap=0):
+    concatenated_text = ""
+    for file in files:
+        try:
+            concatenated_text += file.text + "\n"  # Adjusted line
+        except AttributeError as e:
+            st.error(f"Error extracting text from file: {e}")
+            continue  # skip to the next file on error
+
+    chunks = [concatenated_text[i:i + chunk_size] for i in range(0, len(concatenated_text), chunk_size - chunk_overlap)]
+    return chunks
 
 EMBEDDING = "openai"
 VECTOR_STORE = "faiss"
@@ -22,10 +35,15 @@ st.header("HCD-Helper")
 
 bootstrap_caching()
 
+model: str = st.selectbox("Model", options=MODEL_LIST)  # move this line up
+
 openai_api_key = st.text_input(
     "Enter your OpenAI API key. You can get a key at "
     "[https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)"
 )
+
+if not is_open_ai_key_valid(openai_api_key, model):
+    st.stop()
 
 uploaded_files = st.file_uploader(
     "Upload pdf, docx, or txt files",
@@ -34,8 +52,6 @@ uploaded_files = st.file_uploader(
     help="Scanned documents are not supported yet!",
 )
 
-model: str = st.selectbox("Model", options=MODEL_LIST)
-
 with st.expander("Advanced Options"):
     return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
     show_full_doc = st.checkbox("Show parsed contents of the document")
@@ -43,28 +59,28 @@ with st.expander("Advanced Options"):
 if not uploaded_files:
     st.stop()
 
-concatenated_text = ""  # Initialize an empty string to hold all text
-
+files = []
 for uploaded_file in uploaded_files:
     try:
         file = read_file(uploaded_file)
-        concatenated_text += file.text + "\n\n"  # Separate text of different files with new lines
+        files.append(file)
     except Exception as e:
         display_file_read_error(e, file_name=uploaded_file.name)
+        continue  # skip to the next file on error
 
-# Now, treat concatenated_text as a single 'file'
-# Assuming chunk_file can accept a string and chunk it
-chunked_file = chunk_file(concatenated_text, chunk_size=300, chunk_overlap=0)
-
-if not is_file_valid(concatenated_text):  # Update the validation function to work with a string
+try:
+    chunked_corpus = chunk_multiple_files(files, chunk_size=300, chunk_overlap=0)
+except Exception as e:
+    st.error(f"Error chunking files: {e}")
     st.stop()
 
-if not is_open_ai_key_valid(openai_api_key, model):
+if not is_file_valid(files):
+    st.error("One or more files are invalid")
     st.stop()
 
 with st.spinner("Indexing document... This may take a while⏳"):
     folder_index = embed_files(
-        files=[chunked_file],
+        files=chunked_corpus,
         embedding=EMBEDDING if model != "debug" else "debug",
         vector_store=VECTOR_STORE if model != "debug" else "debug",
         openai_api_key=openai_api_key,
@@ -75,8 +91,9 @@ with st.form(key="qa_form"):
     submit = st.form_submit_button("Submit")
 
 if show_full_doc:
+    concatenated_corpus = "\n".join([file.text for file in files])  # Adjusted line
     with st.expander("Document"):
-        st.markdown(f"<p>{wrap_doc_in_html(concatenated_text)}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p>{wrap_doc_in_html(concatenated_corpus)}</p>", unsafe_allow_html=True)
 
 if submit:
     if not is_query_valid(query):
@@ -103,4 +120,3 @@ if submit:
             st.markdown(source.page_content)
             st.markdown(source.metadata["source"])
             st.markdown("---")
- 
