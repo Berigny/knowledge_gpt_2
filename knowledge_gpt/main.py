@@ -116,10 +116,6 @@ if submit:
     # Set queried to True after processing a query
     st.session_state['queried'] = True
 
-with st.expander("Advanced Options"):
-    return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
-    show_full_doc = st.checkbox("Show parsed contents of the document")
-
 if not uploaded_file:
     st.stop()
 
