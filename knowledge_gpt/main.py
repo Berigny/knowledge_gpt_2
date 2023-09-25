@@ -1,53 +1,31 @@
+import streamlit as st
+from knowledge_gpt.ui import (
+    wrap_doc_in_html,
+    is_query_valid,
+    is_file_valid,
+    is_open_ai_key_valid,
+    display_file_read_error,
+)
+from knowledge_gpt.core.caching import bootstrap_caching
+from knowledge_gpt.core.parsing import read_file
+from knowledge_gpt.core.chunking import chunk_file
+from knowledge_gpt.core.embedding import embed_files
+from knowledge_gpt.core.qa import query_folder
+from knowledge_gpt.core.utils import get_llm
 
+EMBEDDING = "openai"
+VECTOR_STORE = "faiss"
+MODEL_LIST = ["gpt-3.5-turbo", "gpt-4"]
 
-import docx
-import PyPDF2
-from typing import Union
+st.set_page_config(page_title="HCD-Helper", layout="wide")
+st.header("HCD-Helper")
 
-class FileWrapper:
-    def __init__(self, file):
-        self.file = file
+bootstrap_caching()
 
-    def is_valid(self):
-        return self.file.size > 0
-
-    def get_text(self):
-        raise NotImplementedError("Subclasses must implement this method")
-
-
-class DocxFileWrapper(FileWrapper):
-    def get_text(self):
-        doc = docx.Document(self.file)
-        return " ".join([p.text for p in doc.paragraphs])
-
-
-class TxtFileWrapper(FileWrapper):
-    def get_text(self):
-        return self.file.read()
-
-
-class PdfFileWrapper(FileWrapper):
-    def get_text(self):
-        pdf_reader = PyPDF2.PdfFileReader(self.file)
-        text = ""
-        for page_num in range(pdf_reader.numPages):
-            page = pdf_reader.getPage(page_num)
-            text += page.extract_text()
-        return text
-
-
-def read_file(uploaded_file) -> Union[FileWrapper, None]:
-    if uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        return DocxFileWrapper(uploaded_file)
-    elif uploaded_file.type == "text/plain":
-        return TxtFileWrapper(uploaded_file)
-    elif uploaded_file.type == "application/pdf":
-        return PdfFileWrapper(uploaded_file)
-    else:
-        # handle unsupported file type
-        return None
-
-# Now your existing code continues here...
+openai_api_key = st.text_input(
+    "Enter your OpenAI API key. You can get a key at "
+    "[https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)"
+)
 
 uploaded_files = st.file_uploader(
     "Upload pdf, docx, or txt files",
@@ -55,3 +33,73 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True,
     help="Scanned documents are not supported yet!",
 )
+
+model: str = st.selectbox("Model", options=MODEL_LIST)
+
+with st.expander("Advanced Options"):
+    return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
+    show_full_doc = st.checkbox("Show parsed contents of the document")
+
+if not uploaded_files:
+    st.stop()
+
+concatenated_text = ""  # Initialize an empty string to hold all text
+
+for uploaded_file in uploaded_files:
+    try:
+        file = read_file(uploaded_file)
+        concatenated_text += file.text + "\n\n"  # Separate text of different files with new lines
+    except Exception as e:
+        display_file_read_error(e, file_name=uploaded_file.name)
+
+# Now, treat concatenated_text as a single 'file'
+# Assuming chunk_file can accept a string and chunk it
+chunked_file = chunk_file(concatenated_text, chunk_size=300, chunk_overlap=0)
+
+if not is_file_valid(concatenated_text):  # Update the validation function to work with a string
+    st.stop()
+
+if not is_open_ai_key_valid(openai_api_key, model):
+    st.stop()
+
+with st.spinner("Indexing document... This may take a while⏳"):
+    folder_index = embed_files(
+        files=[chunked_file],
+        embedding=EMBEDDING if model != "debug" else "debug",
+        vector_store=VECTOR_STORE if model != "debug" else "debug",
+        openai_api_key=openai_api_key,
+    )
+
+with st.form(key="qa_form"):
+    query = st.text_area("Ask a question about the document")
+    submit = st.form_submit_button("Submit")
+
+if show_full_doc:
+    with st.expander("Document"):
+        st.markdown(f"<p>{wrap_doc_in_html(concatenated_text)}</p>", unsafe_allow_html=True)
+
+if submit:
+    if not is_query_valid(query):
+        st.stop()
+
+    # Output Columns
+    answer_col, sources_col = st.columns(2)
+
+    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
+    result = query_folder(
+        folder_index=folder_index,
+        query=query,
+        return_all=return_all_chunks,
+        llm=llm,
+    )
+
+    with answer_col:
+        st.markdown("#### Answer")
+        st.markdown(result.answer)
+
+    with sources_col:
+        st.markdown("#### Sources")
+        for source in result.sources:
+            st.markdown(source.page_content)
+            st.markdown(source.metadata["source"])
+            st.markdown("---")
