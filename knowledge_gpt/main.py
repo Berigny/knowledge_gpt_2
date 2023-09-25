@@ -63,6 +63,10 @@ for uploaded_file in uploaded_files:
 # Set processed to True once the document is processed
 st.session_state['processed'] = True
 
+with st.form(key="qa_form"):
+    query = st.text_area("Ask a question about the document")
+    submit = st.form_submit_button("Submit")
+
 
 # Create a list of document options, adding an "All documents" option at the start
 document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
@@ -139,9 +143,6 @@ with st.spinner("Indexing document... This may take a while⏳"):
 # Set processed to True once the document is processed
 st.session_state['processed'] = True
 
-with st.form(key="qa_form"):
-    query = st.text_area("Ask a question about the document")
-    submit = st.form_submit_button("Submit")
 
 if show_full_doc:
     with st.expander("Document"):
