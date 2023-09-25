@@ -16,13 +16,6 @@ from knowledge_gpt.core.embedding import embed_files
 from knowledge_gpt.core.qa import query_folder
 from knowledge_gpt.core.utils import get_llm
 
-# Initialize session state if it doesn't exist
-if 'processed' not in st.session_state:
-    st.session_state['processed'] = False
-
-if 'queried' not in st.session_state:
-    st.session_state['queried'] = False
-
 EMBEDDING = "openai"
 VECTOR_STORE = "faiss"
 MODEL_LIST = ["gpt-3.5-turbo", "gpt-4"]
@@ -38,16 +31,12 @@ openai_api_key = st.text_input(
     "[https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)"
 )
 
-# Check the session state to decide whether to show the file uploader or not
-if not st.session_state['processed'] or st.session_state['queried']:
-    uploaded_file = st.file_uploader(
-        "Upload a pdf, docx, or txt file",
-        type=["pdf", "docx", "txt"],
-        help="Scanned documents are not supported yet!",
-    )
-else:
-    st.warning("Please query the processed document before uploading a new one.")
-    uploaded_file = None  # Set to None to prevent further processing
+uploaded_files = st.file_uploader(
+    "Upload pdf, docx, or txt files",
+    type=["pdf", "docx", "txt"],
+    help="Scanned documents are not supported yet!",
+    accept_multiple_files=True  # Allows multiple files
+)
 
 model: str = st.selectbox("Model", options=MODEL_LIST)  # type: ignore
 
@@ -55,46 +44,43 @@ with st.expander("Advanced Options"):
     return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
     show_full_doc = st.checkbox("Show parsed contents of the document")
 
-if not uploaded_file:
+if not uploaded_files:
     st.stop()
 
-try:
-    file = read_file(uploaded_file)
-except Exception as e:
-    display_file_read_error(e, file_name=uploaded_file.name)
+folder_indices = []
+for uploaded_file in uploaded_files:
+    try:
+        file = read_file(uploaded_file)
+    except Exception as e:
+        display_file_read_error(e, file_name=uploaded_file.name)
+        continue  # Skip to the next file if there's an error
 
-chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
+    chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
 
-if not is_file_valid(file):
-    st.stop()
+    if not is_file_valid(file):
+        continue  # Skip to the next file if not valid
 
-if not is_open_ai_key_valid(openai_api_key, model):
-    st.stop()
+    if not is_open_ai_key_valid(openai_api_key, model):
+        continue  # Skip to the next file if API key is not valid
 
-with st.spinner("Indexing document... This may take a while⏳"):
-    folder_index = embed_files(
-        files=[chunked_file],
-        embedding=EMBEDDING if model != "debug" else "debug",
-        vector_store=VECTOR_STORE if model != "debug" else "debug",
-        openai_api_key=openai_api_key,
-    )
+    with st.spinner(f"Indexing document {uploaded_file.name}... This may take a while⏳"):
+        folder_index = embed_files(
+            files=[chunked_file],
+            embedding=EMBEDDING if model != "debug" else "debug",
+            vector_store=VECTOR_STORE if model != "debug" else "debug",
+            openai_api_key=openai_api_key,
+        )
+        folder_indices.append(folder_index)  # Keep track of indices
 
-# Set processed to True once the document is processed
-st.session_state['processed'] = True
+    if show_full_doc:
+        with st.expander(f"Document {uploaded_file.name}"):
+            st.markdown(f"<p>{wrap_doc_in_html(file.docs)}</p>", unsafe_allow_html=True)
 
 with st.form(key="qa_form"):
-    query = st.text_area("Ask a question about the document")
+    query = st.text_area("Ask a question about the documents")
     submit = st.form_submit_button("Submit")
 
-if show_full_doc:
-    with st.expander("Document"):
-        # Hack to get around st.markdown rendering LaTeX
-        st.markdown(f"<p>{wrap_doc_in_html(file.docs)}</p>", unsafe_allow_html=True)
-
 if submit:
-    # Set queried to True once the document is queried
-    st.session_state['queried'] = True
-
     if not is_query_valid(query):
         st.stop()
 
@@ -102,6 +88,9 @@ if submit:
     answer_col, sources_col = st.columns(2)
 
     llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
+    
+    # Assume the query is for the first document; adjust as needed.
+    folder_index = folder_indices[0]
     result = query_folder(
         folder_index=folder_index,
         query=query,
