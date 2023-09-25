@@ -29,10 +29,16 @@ st.header("HCD-Helper")
 
 bootstrap_caching()
 
+model: str = st.selectbox("Model", options=MODEL_LIST)  # move this line up
+
 openai_api_key = st.text_input(
     "Enter your OpenAI API key. You can get a key at "
     "[https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)"
 )
+
+if not is_open_ai_key_valid(openai_api_key, model):
+    st.stop()
+
 
 uploaded_files = st.file_uploader(
     "Upload pdf, docx, or txt files",
@@ -40,12 +46,6 @@ uploaded_files = st.file_uploader(
     accept_multiple_files=True,
     help="Scanned documents are not supported yet!",
 )
-
-if not is_open_ai_key_valid(openai_api_key, model):
-    st.stop()
-
-
-model: str = st.selectbox("Model", options=MODEL_LIST)
 
 with st.expander("Advanced Options"):
     return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
@@ -116,3 +116,4 @@ if submit:
             st.markdown(source.page_content)
             st.markdown(source.metadata["source"])
             st.markdown("---")
+
