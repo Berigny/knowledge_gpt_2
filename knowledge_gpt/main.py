@@ -65,13 +65,13 @@ with st.form(key="qa_form"):
     query = st.text_area("Ask a question about the document")
     submit = st.form_submit_button("Submit")
 
+# Create a list of document options, adding an "All documents" option at the start
+document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
+selected_document = st.selectbox("Select document", options=document_options)
+
 if submit:
     if not is_query_valid(query):
         st.stop()
-
-    # Create a list of document options, adding an "All documents" option at the start
-    document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
-    selected_document = st.selectbox("Select document", options=document_options)
 
     # Output Columns
     answer_col, sources_col = st.columns(2)
