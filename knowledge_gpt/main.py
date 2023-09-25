@@ -68,21 +68,13 @@ with st.form(key="qa_form"):
     submit = st.form_submit_button("Submit")
 
 
-# Create a list of document options, adding an "All documents" option at the start
-document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
-selected_document = st.selectbox("Select document", options=document_options)
+def handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files):
+    document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
+    selected_document = st.selectbox("Select document", options=document_options)
 
-if submit:
-    if not is_query_valid(query):
-        st.stop()
-
-    # Output Columns
     answer_col, sources_col = st.columns(2)
 
-    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
-
     if selected_document == "All documents":
-        # Query all documents
         all_results = []
         for folder_index in folder_indices:
             result = query_folder(
@@ -94,8 +86,7 @@ if submit:
             all_results.append(result)
         # ... handle/display results for all documents
     else:
-        # Query the selected document
-        folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
+        folder_index = folder_indices[document_options.index(selected_document) - 1]
         result = query_folder(
             folder_index=folder_index,
             query=query,
@@ -113,16 +104,20 @@ if submit:
                 st.markdown(source.metadata["source"])
                 st.markdown("---")
 
-    # Set queried to True after processing a query
-    st.session_state['queried'] = True
 
-if not uploaded_file:
+if submit:
+    if not is_query_valid(query):
+        st.stop()
+    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
+    handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files)
+
+if not uploaded_files:
     st.stop()
 
 try:
-    file = read_file(uploaded_file)
+    file = read_file(uploaded_files[0])  # assuming you want to read the first file
 except Exception as e:
-    display_file_read_error(e, file_name=uploaded_file.name)
+    display_file_read_error(e, file_name=uploaded_files[0].name)
 
 chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
 
@@ -143,57 +138,7 @@ with st.spinner("Indexing document... This may take a while⏳"):
 # Set processed to True once the document is processed
 st.session_state['processed'] = True
 
-with st.form(key="qa_form"):
-    query = st.text_area("Ask a question about the document")
-    submit = st.form_submit_button("Submit")
-
 if show_full_doc:
     with st.expander("Document"):
         # Hack to get around st.markdown rendering LaTeX
         st.markdown(f"<p>{wrap_doc_in_html(file.docs)}</p>", unsafe_allow_html=True)
-
-if submit:
-    if not is_query_valid(query):
-        st.stop()
-
-    # Create a list of document options, adding an "All documents" option at the start
-    document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
-    selected_document = st.selectbox("Select document", options=document_options)
-
-    # Output Columns
-    answer_col, sources_col = st.columns(2)
-
-    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
-
-    if selected_document == "All documents":
-        # Query all documents
-        all_results = []
-        for folder_index in folder_indices:
-            result = query_folder(
-                folder_index=folder_index,
-                query=query,
-                return_all=return_all_chunks,
-                llm=llm,
-            )
-            all_results.append(result)
-        # ... handle/display results for all documents
-    else:
-        # Query the selected document
-        folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
-        result = query_folder(
-            folder_index=folder_index,
-            query=query,
-            return_all=return_all_chunks,
-            llm=llm,
-        )
-
-    with answer_col:
-        st.markdown("#### Answer")
-        st.markdown(result.answer)
-
-    with sources_col:
-        st.markdown("#### Sources")
-        for source in result.sources:
-            st.markdown(source.page_content)
-            st.markdown(source.metadata["source"])
-            st.markdown("---")
