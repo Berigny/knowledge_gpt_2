@@ -66,10 +66,13 @@ for uploaded_file in uploaded_files:
 
 
 # Validate the concatenated corpus before proceeding
-concatenated_corpus = "\n".join([file.get_text() for file in files])
+concatenated_corpus = "\n".join([file.correct_method_name() for file in files])
+
 
 # Add this line to get chunked_corpus
 chunked_corpus = chunk_multiple_files(files, chunk_size=300, chunk_overlap=0)
+
+
 
 if not is_file_valid(concatenated_corpus):
     st.stop()
@@ -116,4 +119,3 @@ if submit:
             st.markdown(source.page_content)
             st.markdown(source.metadata["source"])
             st.markdown("---")
-
