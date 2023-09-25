@@ -63,18 +63,16 @@ for uploaded_file in uploaded_files:
 # Set processed to True once the document is processed
 st.session_state['processed'] = True
 
-with st.form(key="qa_form"):
-    query = st.text_area("Ask a question about the document")
-    submit = st.form_submit_button("Submit")
-
-
 def handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files):
+    # Create a list of document options, adding an "All documents" option at the start
     document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
     selected_document = st.selectbox("Select document", options=document_options)
 
+    # Output Columns
     answer_col, sources_col = st.columns(2)
 
     if selected_document == "All documents":
+        # Query all documents
         all_results = []
         for folder_index in folder_indices:
             result = query_folder(
@@ -86,7 +84,8 @@ def handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files):
             all_results.append(result)
         # ... handle/display results for all documents
     else:
-        folder_index = folder_indices[document_options.index(selected_document) - 1]
+        # Query the selected document
+        folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
         result = query_folder(
             folder_index=folder_index,
             query=query,
@@ -104,39 +103,18 @@ def handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files):
                 st.markdown(source.metadata["source"])
                 st.markdown("---")
 
+with st.form(key="qa_form"):
+    query = st.text_area("Ask a question about the document")
+    submit = st.form_submit_button("Submit")
 
-if submit:
-    if not is_query_valid(query):
-        st.stop()
-    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
-    handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files)
+    if submit:
+        if not is_query_valid(query):
+            st.stop()
+        llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
+        handle_query(folder_indices, query, return_all_chunks, llm, uploaded_files)
 
 if not uploaded_files:
     st.stop()
-
-try:
-    file = read_file(uploaded_files[0])  # assuming you want to read the first file
-except Exception as e:
-    display_file_read_error(e, file_name=uploaded_files[0].name)
-
-chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
-
-if not is_file_valid(file):
-    st.stop()
-
-if not is_open_ai_key_valid(openai_api_key, model):
-    st.stop()
-
-with st.spinner("Indexing document... This may take a while⏳"):
-    folder_index = embed_files(
-        files=[chunked_file],
-        embedding=EMBEDDING if model != "debug" else "debug",
-        vector_store=VECTOR_STORE if model != "debug" else "debug",
-        openai_api_key=openai_api_key,
-    )
-
-# Set processed to True once the document is processed
-st.session_state['processed'] = True
 
 if show_full_doc:
     with st.expander("Document"):
