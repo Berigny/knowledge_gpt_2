@@ -86,6 +86,8 @@ for uploaded_file in uploaded_files:
 
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
+submit = st.button("Submit")  # Add this line to create a submit button
+
 if submit:
     if not is_query_valid(query):
         st.stop()
