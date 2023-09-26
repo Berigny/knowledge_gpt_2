@@ -1,5 +1,4 @@
 import streamlit as st
-
 from knowledge_gpt.ui import (
     wrap_doc_in_html,
     is_query_valid,
@@ -7,9 +6,7 @@ from knowledge_gpt.ui import (
     is_open_ai_key_valid,
     display_file_read_error,
 )
-
 from knowledge_gpt.core.caching import bootstrap_caching
-
 from knowledge_gpt.core.parsing import read_file
 from knowledge_gpt.core.chunking import chunk_file
 from knowledge_gpt.core.embedding import embed_files
@@ -22,6 +19,9 @@ if 'processed' not in st.session_state:
 
 if 'queried' not in st.session_state:
     st.session_state['queried'] = False
+
+# Initialize an empty string to accumulate document text
+all_documents_text = ""
 
 EMBEDDING = "openai"
 VECTOR_STORE = "faiss"
@@ -72,6 +72,9 @@ for uploaded_file in uploaded_files:
     chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
     processed_files.append(chunked_file)  # Store processed files for later access
 
+    # Accumulate document text
+    all_documents_text += '\n'.join([doc.text for doc in chunked_file.docs]) + '\n'
+
     with st.spinner("Indexing document... This may take a while⏳"):
         folder_index = embed_files(
             files=[chunked_file],
@@ -80,6 +83,9 @@ for uploaded_file in uploaded_files:
             openai_api_key=openai_api_key,
         )
         folder_indices.append(folder_index)  # Store folder indices for later querying
+
+st.session_state['processed'] = True  # Set processed to True once documents are processed
+
 
 # Create a combined document and embed it
 combined_document = '\n'.join([file.docs for file in processed_files])
