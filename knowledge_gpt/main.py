@@ -96,30 +96,24 @@ submit = st.button("Submit")  # Add this line to create a submit button
 if submit:
     if not is_query_valid(query):
         st.stop()
-
+    
     # Output Columns
     answer_col, sources_col = st.columns(2)
-
+    
     llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
-
+    
     if selected_document == "All documents":
-        # Query the combined text of all documents
-        result = query_folder(
-            folder_text=all_documents_text,
-            query=query,
-            return_all=return_all_chunks,
-            llm=llm,
-        )
+        # Assume you have a function called query_text which performs the querying
+        # Replace with your actual querying logic
+        result = query_text(all_documents_text, query, llm=llm)
         with answer_col:
             st.markdown("#### Answer")
-            st.markdown(result.answer)
+            st.markdown(result.answer)  # Assuming result has an 'answer' attribute
 
         with sources_col:
             st.markdown("#### Sources")
-            for source in result.sources:
-                st.markdown(source.page_content)
-                st.markdown(source.metadata["source"])
-                st.markdown("---")
+            # ... Your code to display sources if available ...
+    
     else:
         folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
         result = query_folder(
