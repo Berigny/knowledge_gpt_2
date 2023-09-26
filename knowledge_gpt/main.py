@@ -105,7 +105,6 @@ if submit:
 
     if selected_document == "All documents":
         # Query all documents
-        all_results = []
         for folder_index in folder_indices:
             result = query_folder(
                 folder_index=folder_index,
@@ -113,8 +112,16 @@ if submit:
                 return_all=return_all_chunks,
                 llm=llm,
             )
-            all_results.append(result)
-        # ... handle/display results for all documents
+            with answer_col:
+                st.markdown(f"#### Answer for Document {folder_indices.index(folder_index) + 1}")
+                st.markdown(result.answer)
+
+            with sources_col:
+                st.markdown(f"#### Sources for Document {folder_indices.index(folder_index) + 1}")
+                for source in result.sources:
+                    st.markdown(source.page_content)
+                    st.markdown(source.metadata["source"])
+                    st.markdown("---")
     else:
         # Query the selected document
         folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
