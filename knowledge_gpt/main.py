@@ -86,6 +86,11 @@ for uploaded_file in uploaded_files:
 
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
+# Add these lines to collect user input for the query and selected document
+query = st.text_input("Enter your query:")  # Get user input for query
+document_options = ["All documents"] + [f.name for f in uploaded_files]  # Prepare document options
+selected_document = st.selectbox("Select document:", options=document_options)  # Get user selection for document
+
 submit = st.button("Submit")  # Add this line to create a submit button
 
 if submit:
