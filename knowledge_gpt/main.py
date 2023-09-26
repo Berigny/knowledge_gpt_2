@@ -27,7 +27,6 @@ EMBEDDING = "openai"
 VECTOR_STORE = "faiss"
 MODEL_LIST = ["gpt-3.5-turbo", "gpt-4"]
 
-# Page setup
 st.set_page_config(page_title="HCD-Helper", layout="wide")
 st.header("HCD-Helper")
 
@@ -39,102 +38,22 @@ openai_api_key = st.text_input(
     "[https://platform.openai.com/account/api-keys](https://platform.openai.com/account/api-keys)"
 )
 
-uploaded_files = st.file_uploader(
-    "Upload pdf, docx, or txt files",
-    type=["pdf", "docx", "txt"],
-    accept_multiple_files=True,
-    help="Scanned documents are not supported yet!",
-)
+# Check the session state to decide whether to show the file uploader or not
+if not st.session_state['processed'] or st.session_state['queried']:
+    uploaded_file = st.file_uploader(
+        "Upload a pdf, docx, or txt file",
+        type=["pdf", "docx", "txt"],
+        help="Scanned documents are not supported yet!",
+    )
+else:
+    st.warning("Please query the processed document before uploading a new one.")
+    uploaded_file = None  # Set to None to prevent further processing
 
 model: str = st.selectbox("Model", options=MODEL_LIST)  # type: ignore
 
 with st.expander("Advanced Options"):
     return_all_chunks = st.checkbox("Show all chunks retrieved from vector search")
     show_full_doc = st.checkbox("Show parsed contents of the document")
-
-if not uploaded_files:
-    st.stop()
-
-# Process uploaded files
-for uploaded_file in uploaded_files:
-    try:
-        file = read_file(uploaded_file)
-    except Exception as e:
-        display_file_read_error(e, file_name=uploaded_file.name)
-        continue  # Skip to the next file on error
-
-    if not is_file_valid(file):
-        continue  # Skip to the next file if it's not valid
-
-    chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
-
-    with st.spinner("Indexing document... This may take a while⏳"):
-        folder_index = embed_files(
-            files=[chunked_file],
-            embedding=EMBEDDING if model != "debug" else "debug",
-            vector_store=VECTOR_STORE if model != "debug" else "debug",
-            openai_api_key=openai_api_key,
-        )
-        folder_indices.append(folder_index)  # Store folder indices for later querying
-
-st.session_state['processed'] = True  # Set processed to True once documents are processed
-
-if show_full_doc:
-    with st.expander("Document"):
-        # This assumes the last processed file. You might want to adjust this to show all/selected documents
-        st.markdown(f"<p>{wrap_doc_in_html(file.docs)}</p>", unsafe_allow_html=True)
-
-with st.form(key="qa_form1"):
-    query = st.text_area("Ask a question about the document")
-    submit = st.form_submit_button("Submit")
-
-# Create a list of document options, adding an "All documents" option at the start
-document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
-selected_document = st.selectbox("Select document", options=document_options)
-
-if submit:
-    if not is_query_valid(query):
-        st.stop()
-
-    # Output Columns
-    answer_col, sources_col = st.columns(2)
-
-    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
-
-    if selected_document == "All documents":
-        # Query all documents
-        all_results = []
-        for folder_index in folder_indices:
-            result = query_folder(
-                folder_index=folder_index,
-                query=query,
-                return_all=return_all_chunks,
-                llm=llm,
-            )
-            all_results.append(result)
-        # ... handle/display results for all documents
-    else:
-        # Query the selected document
-        folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
-        result = query_folder(
-            folder_index=folder_index,
-            query=query,
-            return_all=return_all_chunks,
-            llm=llm,
-        )
-        with answer_col:
-            st.markdown("#### Answer")
-            st.markdown(result.answer)
-
-        with sources_col:
-            st.markdown("#### Sources")
-            for source in result.sources:
-                st.markdown(source.page_content)
-                st.markdown(source.metadata["source"])
-                st.markdown("---")
-
-    # Set queried to True after processing a query
-    st.session_state['queried'] = True
 
 if not uploaded_file:
     st.stop()
@@ -163,6 +82,9 @@ with st.spinner("Indexing document... This may take a while⏳"):
 # Set processed to True once the document is processed
 st.session_state['processed'] = True
 
+with st.form(key="qa_form"):
+    query = st.text_area("Ask a question about the document")
+    submit = st.form_submit_button("Submit")
 
 if show_full_doc:
     with st.expander("Document"):
