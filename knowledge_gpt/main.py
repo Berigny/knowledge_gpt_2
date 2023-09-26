@@ -111,6 +111,8 @@ with st.form(key="qa_form1"):
 document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
 selected_document = st.selectbox("Select document", options=document_options)
 
+submit = st.button("Submit") 
+
 if submit:
     if not is_query_valid(query):
         st.stop()
