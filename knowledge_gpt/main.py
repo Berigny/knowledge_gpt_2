@@ -85,11 +85,22 @@ for uploaded_file in uploaded_files:
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
 if show_full_doc:
-    with st.expander("Document"):
-        # For simplicity, this code assumes you want to display the last processed file.
-        # You might want to adjust this to show all/selected documents.
-        last_processed_file = processed_files[-1]  # Get the last processed file
-        st.markdown(f"<p>{wrap_doc_in_html(last_processed_file.docs)}</p>", unsafe_allow_html=True)
+    all_docs_content = ""
+    for i, uploaded_file in enumerate(uploaded_files, start=1):
+        try:
+            file = read_file(uploaded_file)
+        except Exception as e:
+            display_file_read_error(e, file_name=uploaded_file.name)
+            continue  # Skip to the next file on error
+
+        doc_content = wrap_doc_in_html(file.docs)
+        all_docs_content += f"<h3>Document {i}</h3>{doc_content}"  # Combine content for "All Documents" section
+        
+        with st.expander(f"Document {i}"):
+            st.markdown(f"<p>{doc_content}</p>", unsafe_allow_html=True)
+    
+    with st.expander("All Documents"):
+        st.markdown(f"<p>{all_docs_content}</p>", unsafe_allow_html=True)
 
 with st.form(key="qa_form1"):
     query = st.text_area("Ask a question about the document")
