@@ -121,8 +121,9 @@ if submit:
     llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
 
     if selected_document == "All documents":
+        # Query the combined text of all documents
         result = query_folder(
-            folder_index=combined_folder_index,
+            folder_text=all_documents_text,
             query=query,
             return_all=return_all_chunks,
             llm=llm,
