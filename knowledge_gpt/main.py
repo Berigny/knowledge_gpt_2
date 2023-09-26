@@ -82,7 +82,7 @@ for uploaded_file in uploaded_files:
         folder_indices.append(folder_index)  # Store folder indices for later querying
 
 # Create a combined document and embed it
-combined_document = '\n'.join([file.docs for file in processed_files])
+combined_document = '\n'.join([doc for file in processed_files for doc in file.docs])
 
 with st.spinner("Indexing combined document... This may take a while⏳"):
     combined_folder_index = embed_files(
