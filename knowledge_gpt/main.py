@@ -57,6 +57,8 @@ if not uploaded_files:
 
 folder_indices = []
 
+processed_files = []  # List to store processed files
+
 # Process uploaded files
 for uploaded_file in uploaded_files:
     try:
@@ -69,6 +71,7 @@ for uploaded_file in uploaded_files:
         continue  # Skip to the next file if it's not valid
 
     chunked_file = chunk_file(file, chunk_size=300, chunk_overlap=0)
+    processed_files.append(chunked_file)  # Store processed files for later access
 
     with st.spinner("Indexing document... This may take a while⏳"):
         folder_index = embed_files(
@@ -83,8 +86,10 @@ st.session_state['processed'] = True  # Set processed to True once documents are
 
 if show_full_doc:
     with st.expander("Document"):
-        # This assumes the last processed file. You might want to adjust this to show all/selected documents
-        st.markdown(f"<p>{wrap_doc_in_html(file.docs)}</p>", unsafe_allow_html=True)
+        # For simplicity, this code assumes you want to display the last processed file.
+        # You might want to adjust this to show all/selected documents.
+        last_processed_file = processed_files[-1]  # Get the last processed file
+        st.markdown(f"<p>{wrap_doc_in_html(last_processed_file.docs)}</p>", unsafe_allow_html=True)
 
 with st.form(key="qa_form1"):
     query = st.text_area("Ask a question about the document")
