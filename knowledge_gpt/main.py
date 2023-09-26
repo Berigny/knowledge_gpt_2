@@ -100,13 +100,13 @@ with st.spinner("Indexing combined document... This may take a while⏳"):
 
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
-if show_full_doc:
-    with st.expander("All Documents"):
-        st.markdown(f"<p>{wrap_doc_in_html(combined_document)}</p>", unsafe_allow_html=True)
-
 with st.form(key="qa_form1"):
     query = st.text_area("Ask a question about the document")
     submit = st.form_submit_button("Submit")
+
+if show_full_doc:
+    with st.expander("All Documents"):
+        st.markdown(f"<p>{wrap_doc_in_html(combined_document)}</p>", unsafe_allow_html=True)
 
 document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
 selected_document = st.selectbox("Select document", options=document_options)
