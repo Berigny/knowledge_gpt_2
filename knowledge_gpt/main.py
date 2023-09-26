@@ -56,7 +56,6 @@ if not uploaded_files:
     st.stop()
 
 folder_indices = []
-
 processed_files = []  # List to store processed files
 
 # Process uploaded files
@@ -82,31 +81,27 @@ for uploaded_file in uploaded_files:
         )
         folder_indices.append(folder_index)  # Store folder indices for later querying
 
+# Create a combined document and embed it
+combined_document = '\n'.join([file.docs for file in processed_files])
+
+with st.spinner("Indexing combined document... This may take a while⏳"):
+    combined_folder_index = embed_files(
+        files=[chunk_file(combined_document, chunk_size=300, chunk_overlap=0)],
+        embedding=EMBEDDING if model != "debug" else "debug",
+        vector_store=VECTOR_STORE if model != "debug" else "debug",
+        openai_api_key=openai_api_key,
+    )
+
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
 if show_full_doc:
-    all_docs_content = ""
-    for i, uploaded_file in enumerate(uploaded_files, start=1):
-        try:
-            file = read_file(uploaded_file)
-        except Exception as e:
-            display_file_read_error(e, file_name=uploaded_file.name)
-            continue  # Skip to the next file on error
-
-        doc_content = wrap_doc_in_html(file.docs)
-        all_docs_content += f"<h3>Document {i}</h3>{doc_content}"  # Combine content for "All Documents" section
-        
-        with st.expander(f"Document {i}"):
-            st.markdown(f"<p>{doc_content}</p>", unsafe_allow_html=True)
-    
     with st.expander("All Documents"):
-        st.markdown(f"<p>{all_docs_content}</p>", unsafe_allow_html=True)
+        st.markdown(f"<p>{wrap_doc_in_html(combined_document)}</p>", unsafe_allow_html=True)
 
 with st.form(key="qa_form1"):
     query = st.text_area("Ask a question about the document")
     submit = st.form_submit_button("Submit")
 
-# Create a list of document options, adding an "All documents" option at the start
 document_options = ["All documents"] + [f"Document {i}" for i, _ in enumerate(uploaded_files, start=1)]
 selected_document = st.selectbox("Select document", options=document_options)
 
@@ -120,26 +115,23 @@ if submit:
     llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
 
     if selected_document == "All documents":
-        # Query all documents
-        for folder_index in folder_indices:
-            result = query_folder(
-                folder_index=folder_index,
-                query=query,
-                return_all=return_all_chunks,
-                llm=llm,
-            )
-            with answer_col:
-                st.markdown(f"#### Answer for Document {folder_indices.index(folder_index) + 1}")
-                st.markdown(result.answer)
+        result = query_folder(
+            folder_index=combined_folder_index,
+            query=query,
+            return_all=return_all_chunks,
+            llm=llm,
+        )
+        with answer_col:
+            st.markdown("#### Answer")
+            st.markdown(result.answer)
 
-            with sources_col:
-                st.markdown(f"#### Sources for Document {folder_indices.index(folder_index) + 1}")
-                for source in result.sources:
-                    st.markdown(source.page_content)
-                    st.markdown(source.metadata["source"])
-                    st.markdown("---")
+        with sources_col:
+            st.markdown("#### Sources")
+            for source in result.sources:
+                st.markdown(source.page_content)
+                st.markdown(source.metadata["source"])
+                st.markdown("---")
     else:
-        # Query the selected document
         folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
         result = query_folder(
             folder_index=folder_index,
