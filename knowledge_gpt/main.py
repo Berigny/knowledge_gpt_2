@@ -73,7 +73,7 @@ for uploaded_file in uploaded_files:
     processed_files.append(chunked_file)  # Store processed files for later access
 
     # Accumulate document text
-    all_documents_text += '\n'.join([doc.text for doc in chunked_file.docs]) + '\n'
+    all_documents_text += '\n'.join([str(doc) for doc in chunked_file.docs]) + '\n'
 
     with st.spinner("Indexing document... This may take a while⏳"):
         folder_index = embed_files(
@@ -86,3 +86,51 @@ for uploaded_file in uploaded_files:
 
 st.session_state['processed'] = True  # Set processed to True once documents are processed
 
+if submit:
+    if not is_query_valid(query):
+        st.stop()
+
+    # Output Columns
+    answer_col, sources_col = st.columns(2)
+
+    llm = get_llm(model=model, openai_api_key=openai_api_key, temperature=0)
+
+    if selected_document == "All documents":
+        # Query the combined text of all documents
+        result = query_folder(
+            folder_text=all_documents_text,
+            query=query,
+            return_all=return_all_chunks,
+            llm=llm,
+        )
+        with answer_col:
+            st.markdown("#### Answer")
+            st.markdown(result.answer)
+
+        with sources_col:
+            st.markdown("#### Sources")
+            for source in result.sources:
+                st.markdown(source.page_content)
+                st.markdown(source.metadata["source"])
+                st.markdown("---")
+    else:
+        folder_index = folder_indices[document_options.index(selected_document) - 1]  # Adjusted index due to "All documents" option
+        result = query_folder(
+            folder_index=folder_index,
+            query=query,
+            return_all=return_all_chunks,
+            llm=llm,
+        )
+        with answer_col:
+            st.markdown("#### Answer")
+            st.markdown(result.answer)
+
+        with sources_col:
+            st.markdown("#### Sources")
+            for source in result.sources:
+                st.markdown(source.page_content)
+                st.markdown(source.metadata["source"])
+                st.markdown("---")
+
+    # Set queried to True after processing a query
+    st.session_state['queried'] = True
